@@ -30,6 +30,8 @@ export const STRETCH_EXERCISES = [
     sets: 3,
     reps: '30 sec each leg',
     restSeconds: 10,
+    holdSeconds: 30,
+    holdSides: 2,
     estimatedMinutes: 3,
     instructions: [
       'Stand tall on one leg — hold a wall for balance if needed.',
@@ -55,6 +57,8 @@ export const STRETCH_EXERCISES = [
     sets: 2,
     reps: '30 sec each side',
     restSeconds: 10,
+    holdSeconds: 30,
+    holdSides: 2,
     estimatedMinutes: 2,
     instructions: [
       'Kneel on one knee with the other foot forward (lunge position).',
@@ -80,6 +84,8 @@ export const STRETCH_EXERCISES = [
     sets: 3,
     reps: '30 sec each leg',
     restSeconds: 10,
+    holdSeconds: 30,
+    holdSides: 2,
     estimatedMinutes: 2,
     instructions: [
       'Stand facing a wall, hands on wall at shoulder height.',
@@ -105,6 +111,8 @@ export const STRETCH_EXERCISES = [
     sets: 2,
     reps: '30 sec each leg',
     restSeconds: 10,
+    holdSeconds: 30,
+    holdSides: 2,
     estimatedMinutes: 2,
     instructions: [
       'Sit on the edge of a chair or on the floor.',
@@ -130,6 +138,8 @@ export const STRETCH_EXERCISES = [
     sets: 2,
     reps: '60 sec each leg',
     restSeconds: 15,
+    holdSeconds: 60,
+    holdSides: 2,
     estimatedMinutes: 3,
     instructions: [
       'Lie face down with a foam roller under one thigh.',
@@ -160,6 +170,8 @@ export const STRENGTH_EXERCISES = {
       sets: 5,
       reps: '45 seconds',
       restSeconds: 120,
+      holdSeconds: 45,
+      holdSides: 1,
       estimatedMinutes: 7,
       instructions: [
         'Stand with your back flat against a smooth wall.',
@@ -187,6 +199,8 @@ export const STRENGTH_EXERCISES = {
       sets: 4,
       reps: '45 sec each leg',
       restSeconds: 120,
+      holdSeconds: 45,
+      holdSides: 2,
       estimatedMinutes: 7,
       instructions: [
         'Perform a wall sit as above.',
