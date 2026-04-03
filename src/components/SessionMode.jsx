@@ -8,10 +8,12 @@ export default function SessionMode({ store, onClose }) {
 
   const [index, setIndex] = useState(0)
   const [completed, setCompleted] = useState([])
-  const [phase, setPhase] = useState('exercise') // 'exercise' | 'hold' | 'rest' | 'done'
+  // phase: 'exercise' | 'hold' | 'set-rest' | 'rest' | 'done'
+  const [phase, setPhase] = useState('exercise')
   const [restLeft, setRestLeft] = useState(0)
   const [holdLeft, setHoldLeft] = useState(0)
   const [holdSide, setHoldSide] = useState(1)
+  const [currentSet, setCurrentSet] = useState(1)
   const [showAbandon, setShowAbandon] = useState(false)
   const startTimeRef = useRef(Date.now())
   const timerRef = useRef(null)
@@ -24,27 +26,56 @@ export default function SessionMode({ store, onClose }) {
     clearTimeout(timerRef.current)
 
     if (phase === 'hold' && holdLeft > 0) {
+      // Tick down the hold timer
       timerRef.current = setTimeout(() => setHoldLeft(s => s - 1), 1000)
+
     } else if (phase === 'hold' && holdLeft === 0) {
+      // One side finished
       const totalSides = current.holdSides || 1
       if (holdSide < totalSides) {
+        // More sides to go — switch side, reset timer
         setHoldSide(s => s + 1)
         setHoldLeft(current.holdSeconds)
       } else {
-        advanceAfterExercise()
+        // All sides done — one full set complete
+        const totalSets = current.sets || 1
+        if (currentSet < totalSets) {
+          // More sets remaining — short rest then next set
+          setRestLeft(current.restSeconds)
+          setPhase('set-rest')
+        } else {
+          // All sets done — move to next exercise
+          advanceAfterExercise()
+        }
       }
-    } else if (phase === 'rest' && restLeft > 0) {
+
+    } else if (phase === 'set-rest' && restLeft > 0) {
       timerRef.current = setTimeout(() => setRestLeft(s => s - 1), 1000)
+
+    } else if (phase === 'set-rest' && restLeft === 0) {
+      // Rest between sets done — start next set
+      setCurrentSet(s => s + 1)
+      setHoldSide(1)
+      setHoldLeft(current.holdSeconds)
+      setPhase('hold')
+
+    } else if (phase === 'rest' && restLeft > 0) {
+      // Between-exercise rest
+      timerRef.current = setTimeout(() => setRestLeft(s => s - 1), 1000)
+
     } else if (phase === 'rest' && restLeft === 0) {
+      // Move to next exercise
       setPhase('exercise')
       setIndex(i => i + 1)
       setHoldSide(1)
+      setCurrentSet(1)
     }
 
     return () => clearTimeout(timerRef.current)
-  }, [phase, holdLeft, restLeft, holdSide])
+  }, [phase, holdLeft, restLeft, holdSide, currentSet])
 
   const startHold = () => {
+    setCurrentSet(1)
     setHoldSide(1)
     setHoldLeft(current.holdSeconds)
     setPhase('hold')
@@ -73,25 +104,49 @@ export default function SessionMode({ store, onClose }) {
     }
   }
 
+  // Skip current hold side → next side or next set or next exercise
   const skipHold = () => {
     clearTimeout(timerRef.current)
     const totalSides = current.holdSides || 1
+    const totalSets = current.sets || 1
+
     if (holdSide < totalSides) {
+      // More sides left in this set
       setHoldSide(s => s + 1)
       setHoldLeft(current.holdSeconds)
+    } else if (currentSet < totalSets) {
+      // All sides done, more sets left
+      setRestLeft(current.restSeconds)
+      setPhase('set-rest')
     } else {
+      // All sets done
       advanceAfterExercise()
     }
   }
 
+  // Skip the between-set rest
+  const skipSetRest = () => {
+    clearTimeout(timerRef.current)
+    setCurrentSet(s => s + 1)
+    setHoldSide(1)
+    setHoldLeft(current.holdSeconds)
+    setPhase('hold')
+  }
+
+  // Skip between-exercise rest
   const skipRest = () => {
     clearTimeout(timerRef.current)
     setPhase('exercise')
     setIndex(i => i + 1)
     setHoldSide(1)
+    setCurrentSet(1)
   }
 
-  if (phase === 'done') return <CompleteScreen onClose={onClose} duration={Math.round((Date.now() - startTimeRef.current) / 60000)} />
+  // ── Screens ──────────────────────────────────────────────────
+
+  if (phase === 'done') {
+    return <CompleteScreen onClose={onClose} duration={Math.round((Date.now() - startTimeRef.current) / 60000)} />
+  }
 
   if (phase === 'rest') {
     return (
@@ -111,8 +166,47 @@ export default function SessionMode({ store, onClose }) {
     )
   }
 
+  if (phase === 'set-rest') {
+    const totalSets = current.sets || 1
+    const catColors = { Isometric: '#F97316', Strength: '#2563EB', Stretch: '#16A34A' }
+    const color = catColors[current.category] || '#2563EB'
+    return (
+      <div className="overlay">
+        <div className="rest-screen">
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: 22, fontWeight: 800 }}>Rest</p>
+            <p style={{ fontSize: 14, color: 'var(--text2)', marginTop: 4 }}>
+              Set {currentSet} of {totalSets} complete
+            </p>
+            {/* Set progress dots */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 10 }}>
+              {Array.from({ length: totalSets }, (_, i) => (
+                <div key={i} style={{
+                  width: 10, height: 10, borderRadius: '50%',
+                  background: i < currentSet ? color : 'var(--border)',
+                  transition: 'background 0.3s'
+                }} />
+              ))}
+            </div>
+          </div>
+
+          <CircleTimer seconds={restLeft} total={current.restSeconds} color={color} />
+
+          <p style={{ fontSize: 14, color: 'var(--text2)', textAlign: 'center' }}>
+            Set {currentSet + 1} of {totalSets} coming up
+          </p>
+
+          <button className="btn btn-ghost" onClick={skipSetRest} style={{ maxWidth: 280 }}>
+            Skip Rest → Set {currentSet + 1}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (phase === 'hold') {
     const totalSides = current.holdSides || 1
+    const totalSets = current.sets || 1
     const sideLabel = totalSides > 1 ? (holdSide === 1 ? 'Left side' : 'Right side') : null
     const catColors = { Isometric: '#F97316', Strength: '#2563EB', Stretch: '#16A34A' }
     const color = catColors[current.category] || '#2563EB'
@@ -121,14 +215,34 @@ export default function SessionMode({ store, onClose }) {
       <div className="overlay">
         <div className="rest-screen">
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 22, fontWeight: 800 }}>{current.name}</p>
+            <p style={{ fontSize: 20, fontWeight: 800 }}>{current.name}</p>
+
+            {/* Set counter */}
+            <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>
+              Set {currentSet} of {totalSets}
+            </p>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 6 }}>
+              {Array.from({ length: totalSets }, (_, i) => (
+                <div key={i} style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: i < currentSet ? color : 'var(--border)',
+                  transition: 'background 0.3s'
+                }} />
+              ))}
+            </div>
+
+            {/* Side label + dots */}
             {sideLabel && (
-              <p style={{ fontSize: 16, fontWeight: 700, color, marginTop: 6 }}>{sideLabel}</p>
+              <p style={{ fontSize: 16, fontWeight: 700, color, marginTop: 10 }}>{sideLabel}</p>
             )}
             {totalSides > 1 && (
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 6 }}>
                 {Array.from({ length: totalSides }, (_, i) => (
-                  <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: i < holdSide ? color : 'var(--border)', transition: 'background 0.3s' }} />
+                  <div key={i} style={{
+                    width: 10, height: 10, borderRadius: '50%',
+                    background: i < holdSide ? color : 'var(--border)',
+                    transition: 'background 0.3s'
+                  }} />
                 ))}
               </div>
             )}
@@ -138,23 +252,30 @@ export default function SessionMode({ store, onClose }) {
 
           <p style={{ fontSize: 14, color: 'var(--text2)', textAlign: 'center', maxWidth: 260 }}>
             {current.category === 'Isometric'
-              ? 'Hold this position. Breathe steadily. Pain up to 4/10 is okay.'
-              : 'Hold the stretch. Breathe and relax into it. Do not bounce.'}
+              ? 'Hold steady. Breathe. Pain up to 4/10 is okay.'
+              : 'Hold the stretch. Breathe and relax into it.'}
           </p>
 
           <button className="btn btn-ghost" onClick={skipHold} style={{ maxWidth: 280 }}>
-            {totalSides > 1 && holdSide < totalSides ? 'Skip → Switch Side' : 'Skip Hold'}
+            {totalSides > 1 && holdSide < totalSides
+              ? 'Skip → Switch Side'
+              : currentSet < totalSets
+                ? 'Skip → Rest'
+                : 'Skip → Next Exercise'}
           </button>
         </div>
       </div>
     )
   }
 
+  // ── Main exercise view ────────────────────────────────────────
+
   const catColors = { Isometric: '#F97316', Strength: '#2563EB', Stretch: '#16A34A' }
   const color = catColors[current?.category] || '#2563EB'
 
   return (
     <div className="overlay">
+      {/* Top bar */}
       <div style={{ padding: '16px 20px 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)' }}>
         <button onClick={() => setShowAbandon(true)} style={{ border: 'none', background: 'var(--card2)', borderRadius: '50%', width: 36, height: 36, fontSize: 16, cursor: 'pointer' }}>✕</button>
         <div style={{ flex: 1 }}>
@@ -208,7 +329,7 @@ export default function SessionMode({ store, onClose }) {
       <div style={{ padding: '12px 20px 36px', borderTop: '1px solid var(--border)', background: 'white' }}>
         {isTimed ? (
           <button className="btn btn-primary" onClick={startHold} style={{ background: color }}>
-            ⏱ Start {current.holdSeconds}s Timer
+            ⏱ Start Set 1 — {current.holdSeconds}s Timer
           </button>
         ) : (
           <button className="btn btn-primary" onClick={advanceAfterExercise}>
@@ -216,7 +337,8 @@ export default function SessionMode({ store, onClose }) {
           </button>
         )}
         {index > 0 && (
-          <button onClick={() => { setIndex(i => i - 1); setCompleted(c => c.slice(0, -1)); setPhase('exercise') }}
+          <button
+            onClick={() => { setIndex(i => i - 1); setCompleted(c => c.slice(0, -1)); setPhase('exercise'); setCurrentSet(1) }}
             style={{ border: 'none', background: 'none', color: 'var(--text2)', fontSize: 14, cursor: 'pointer', width: '100%', padding: '10px 0 0' }}>
             ← Previous
           </button>
