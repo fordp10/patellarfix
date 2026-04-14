@@ -4,40 +4,77 @@ import { getSessionType, getSessionExercises } from '../data/exercises'
 export default function SessionMode({ store, onClose }) {
   const { profile, saveSession } = store
   const sessionType = getSessionType()
-  const exercises = getSessionExercises(profile.currentPhase, sessionType)
+  const exercises = getSessionExercises(profile.currentPhase, sessionType, profile.equipmentType)
 
   const [index, setIndex] = useState(0)
+  const [currentSet, setCurrentSet] = useState(1)
   const [completed, setCompleted] = useState([])
   const [isResting, setIsResting] = useState(false)
   const [restLeft, setRestLeft] = useState(0)
+  const [restingBetweenSets, setRestingBetweenSets] = useState(false)
   const [isDone, setIsDone] = useState(false)
-  const [showDetail, setShowDetail] = useState(false)
+  const [holdLeft, setHoldLeft] = useState(0)
+  const [holdActive, setHoldActive] = useState(false)
+  const [holdFinished, setHoldFinished] = useState(false)
   const [showAbandon, setShowAbandon] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const startTimeRef = useRef(Date.now())
   const timerRef = useRef(null)
+  const holdTimerRef = useRef(null)
 
   const current = exercises[index]
   const progress = exercises.length > 0 ? index / exercises.length : 0
 
+  // Start hold timer when exercise or set changes
+  useEffect(() => {
+    if (current?.holdSeconds && !isDone) {
+      setHoldLeft(current.holdSeconds)
+      setHoldActive(true)
+      setHoldFinished(false)
+    }
+  }, [index, currentSet]) // eslint-disable-line
+
+  // Hold timer countdown
+  useEffect(() => {
+    if (!holdActive || isPaused) return
+    if (holdLeft <= 0) {
+      setHoldActive(false)
+      setHoldFinished(true)
+      return
+    }
+    holdTimerRef.current = setTimeout(() => setHoldLeft(h => h - 1), 1000)
+    return () => clearTimeout(holdTimerRef.current)
+  }, [holdActive, holdLeft, isPaused])
+
   // Rest countdown
   useEffect(() => {
-    if (isResting && restLeft > 0 && !isPaused) {
-      timerRef.current = setTimeout(() => setRestLeft(r => r - 1), 1000)
-    } else if (isResting && restLeft === 0) {
+    if (!isResting || isPaused) return
+    if (restLeft <= 0) {
       setIsResting(false)
-      setIndex(i => i + 1)
+      if (restingBetweenSets) {
+        setCurrentSet(s => s + 1)
+      } else {
+        setIndex(i => i + 1)
+        setCurrentSet(1)
+      }
+      return
     }
+    timerRef.current = setTimeout(() => setRestLeft(r => r - 1), 1000)
     return () => clearTimeout(timerRef.current)
-  }, [isResting, restLeft, isPaused])
+  }, [isResting, restLeft, isPaused, restingBetweenSets])
 
-  const markDone = () => {
-    const newCompleted = [...completed, current.id]
-    setCompleted(newCompleted)
+  const markSetDone = () => {
+    clearTimeout(holdTimerRef.current)
+    setHoldActive(false)
+    setHoldFinished(false)
 
-    if (index >= exercises.length - 1) {
-      // Finish session
-      const session = {
+    const isLastSet = currentSet >= current.sets
+    const isLastExercise = index >= exercises.length - 1
+
+    if (isLastSet && isLastExercise) {
+      const newCompleted = [...completed, current.id]
+      setCompleted(newCompleted)
+      saveSession({
         id: Date.now().toString(),
         date: new Date().toISOString(),
         completedExerciseIds: newCompleted,
@@ -45,12 +82,18 @@ export default function SessionMode({ store, onClose }) {
         sessionType,
         isComplete: true,
         durationMinutes: Math.max(1, Math.round((Date.now() - startTimeRef.current) / 60000)),
-      }
-      saveSession(session)
+      })
       setIsDone(true)
+    } else if (isLastSet) {
+      setCompleted(prev => [...prev, current.id])
+      setIsPaused(false)
+      setRestLeft(current.restSeconds)
+      setRestingBetweenSets(false)
+      setIsResting(true)
     } else {
       setIsPaused(false)
       setRestLeft(current.restSeconds)
+      setRestingBetweenSets(true)
       setIsResting(true)
     }
   }
@@ -58,22 +101,32 @@ export default function SessionMode({ store, onClose }) {
   const skipRest = () => {
     clearTimeout(timerRef.current)
     setIsResting(false)
-    setIndex(i => i + 1)
+    setIsPaused(false)
+    if (restingBetweenSets) {
+      setCurrentSet(s => s + 1)
+    } else {
+      setIndex(i => i + 1)
+      setCurrentSet(1)
+    }
   }
 
   if (isDone) return <CompleteScreen onClose={onClose} duration={Math.round((Date.now() - startTimeRef.current) / 60000)} />
 
   if (isResting) {
+    const nextLabel = restingBetweenSets
+      ? `Set ${currentSet + 1} of ${current.sets}`
+      : (index + 1 < exercises.length ? exercises[index + 1].name : 'Finish!')
+    const nextContext = restingBetweenSets ? current.name : null
+
     return (
       <div className="overlay">
         <div className="rest-screen">
           <p style={{ fontSize: 28, fontWeight: 700, color: 'var(--text2)' }}>Rest</p>
           <CircleTimer seconds={restLeft} total={current.restSeconds} />
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 13, color: 'var(--text2)' }}>Next up</p>
-            <p style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>
-              {index + 1 < exercises.length ? exercises[index + 1].name : 'Finish!'}
-            </p>
+            <p style={{ fontSize: 13, color: 'var(--text2)' }}>{restingBetweenSets ? 'Next set' : 'Next up'}</p>
+            <p style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>{nextLabel}</p>
+            {nextContext && <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 2 }}>{nextContext}</p>}
           </div>
           <button className="btn btn-primary" onClick={() => setIsPaused(p => !p)} style={{ maxWidth: 280 }}>
             {isPaused ? '▶ Resume' : '⏸ Pause'}
@@ -86,6 +139,7 @@ export default function SessionMode({ store, onClose }) {
 
   const catColors = { Isometric: '#F97316', Strength: '#2563EB', Stretch: '#16A34A' }
   const color = catColors[current?.category] || '#2563EB'
+  const isTimed = !!current?.holdSeconds
 
   return (
     <div className="overlay">
@@ -98,24 +152,46 @@ export default function SessionMode({ store, onClose }) {
           </div>
           <p style={{ fontSize: 12, color: 'var(--text2)', textAlign: 'center' }}>{index + 1} of {exercises.length}</p>
         </div>
-        <button onClick={() => setShowDetail(!showDetail)} style={{ border: 'none', background: 'var(--card2)', borderRadius: '50%', width: 36, height: 36, fontSize: 16, cursor: 'pointer' }}>ℹ</button>
+        <div style={{ width: 36 }} />
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '20px 20px 0' }}>
         {/* Exercise header */}
         <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 99, background: `${color}18`, color, fontSize: 12, fontWeight: 700, marginBottom: 10 }}>{current.category}</span>
         <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>{current.name}</h2>
-        <p style={{ fontSize: 16, fontWeight: 700, color, marginBottom: 16 }}>{current.sets} sets × {current.reps}</p>
+        <p style={{ fontSize: 15, fontWeight: 700, color, marginBottom: 2 }}>{current.sets} sets × {current.reps}</p>
+        <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 16 }}>
+          Set {currentSet} of {current.sets}
+        </p>
 
-        {/* Visual */}
-        <div style={{ background: `${color}10`, borderRadius: 'var(--radius)', padding: '28px 20px', textAlign: 'center', marginBottom: 20 }}>
-          <div style={{ fontSize: 64 }}>{current.category === 'Stretch' ? '🧘' : current.category === 'Isometric' ? '🧱' : '💪'}</div>
-          {current.videoURL && (
-            <a href={current.videoURL} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, color: 'var(--red)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-              ▶ Watch video ↗
-            </a>
-          )}
-        </div>
+        {/* Hold timer for timed exercises */}
+        {isTimed ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
+            <CircleTimer
+              seconds={holdLeft}
+              total={current.holdSeconds}
+              color={holdFinished ? 'var(--green)' : color}
+            />
+            {holdFinished && (
+              <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--green)', marginTop: 8 }}>Time's up! ✓</p>
+            )}
+            {current.videoURL && (
+              <a href={current.videoURL} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, color: 'var(--red)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                ▶ Watch video ↗
+              </a>
+            )}
+          </div>
+        ) : (
+          /* Visual placeholder for rep-based exercises */
+          <div style={{ background: `${color}10`, borderRadius: 'var(--radius)', padding: '28px 20px', textAlign: 'center', marginBottom: 20 }}>
+            <div style={{ fontSize: 64 }}>{current.category === 'Stretch' ? '🧘' : current.category === 'Isometric' ? '🧱' : '💪'}</div>
+            {current.videoURL && (
+              <a href={current.videoURL} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, color: 'var(--red)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                ▶ Watch video ↗
+              </a>
+            )}
+          </div>
+        )}
 
         {/* Instructions */}
         <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>Instructions</p>
@@ -136,13 +212,27 @@ export default function SessionMode({ store, onClose }) {
         ))}
       </div>
 
-      {/* Bottom action */}
+      {/* Bottom actions */}
       <div style={{ padding: '12px 20px 36px', borderTop: '1px solid var(--border)', background: 'var(--card)' }}>
-        <button className="btn btn-primary" onClick={markDone}>
-          {index >= exercises.length - 1 ? '🎉 Finish Session' : '✓ Done — Next Exercise →'}
+        {isTimed && (
+          <button className="btn btn-ghost" onClick={() => setIsPaused(p => !p)} style={{ marginBottom: 8 }}>
+            {isPaused ? '▶ Resume Timer' : '⏸ Pause Timer'}
+          </button>
+        )}
+        <button className="btn btn-primary" onClick={markSetDone}>
+          {currentSet >= current.sets && index >= exercises.length - 1
+            ? '🎉 Finish Session'
+            : currentSet >= current.sets
+            ? '✓ Done — Next Exercise →'
+            : `✓ Done Set ${currentSet} of ${current.sets} → Rest`}
         </button>
-        {index > 0 && (
-          <button onClick={() => { setIndex(i => i - 1); setCompleted(c => c.slice(0, -1)) }} style={{ border: 'none', background: 'none', color: 'var(--text2)', fontSize: 14, cursor: 'pointer', width: '100%', padding: '10px 0 0' }}>← Previous</button>
+        {index > 0 && currentSet === 1 && (
+          <button
+            onClick={() => { setIndex(i => i - 1); setCurrentSet(1); setCompleted(c => c.slice(0, -1)) }}
+            style={{ border: 'none', background: 'none', color: 'var(--text2)', fontSize: 14, cursor: 'pointer', width: '100%', padding: '10px 0 0' }}
+          >
+            ← Previous Exercise
+          </button>
         )}
       </div>
 
@@ -161,7 +251,7 @@ export default function SessionMode({ store, onClose }) {
   )
 }
 
-function CircleTimer({ seconds, total }) {
+function CircleTimer({ seconds, total, color = 'var(--blue)' }) {
   const r = 80
   const circ = 2 * Math.PI * r
   const fill = total > 0 ? (seconds / total) * circ : 0
@@ -170,7 +260,7 @@ function CircleTimer({ seconds, total }) {
     <div className="timer-circle">
       <svg width="180" height="180" viewBox="0 0 180 180">
         <circle cx="90" cy="90" r={r} fill="none" stroke="var(--border)" strokeWidth="8" />
-        <circle cx="90" cy="90" r={r} fill="none" stroke="var(--blue)" strokeWidth="8"
+        <circle cx="90" cy="90" r={r} fill="none" stroke={color} strokeWidth="8"
           strokeDasharray={circ}
           strokeDashoffset={circ - fill}
           strokeLinecap="round"

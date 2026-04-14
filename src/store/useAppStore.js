@@ -10,6 +10,7 @@ const defaultState = {
     onboardingComplete: false,
     startDate: null,
     currentPhase: 1,
+    equipmentType: 'home',
   },
   sessions: [],
 }
