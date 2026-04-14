@@ -27,8 +27,10 @@ export const STRETCH_EXERCISES = [
     id: 'stretch_quad',
     name: 'Standing Quad Stretch',
     category: 'Stretch',
+    equipment: 'home',
     sets: 3,
     reps: '30 sec each leg',
+    holdSeconds: 30,
     restSeconds: 10,
     estimatedMinutes: 3,
     instructions: [
@@ -52,8 +54,10 @@ export const STRETCH_EXERCISES = [
     id: 'stretch_hip',
     name: 'Kneeling Hip Flexor Stretch',
     category: 'Stretch',
+    equipment: 'home',
     sets: 2,
     reps: '30 sec each side',
+    holdSeconds: 30,
     restSeconds: 10,
     estimatedMinutes: 2,
     instructions: [
@@ -77,8 +81,10 @@ export const STRETCH_EXERCISES = [
     id: 'stretch_calf',
     name: 'Calf Stretch (Wall)',
     category: 'Stretch',
+    equipment: 'home',
     sets: 3,
     reps: '30 sec each leg',
+    holdSeconds: 30,
     restSeconds: 10,
     estimatedMinutes: 2,
     instructions: [
@@ -102,8 +108,10 @@ export const STRETCH_EXERCISES = [
     id: 'stretch_hamstring',
     name: 'Seated Hamstring Stretch',
     category: 'Stretch',
+    equipment: 'home',
     sets: 2,
     reps: '30 sec each leg',
+    holdSeconds: 30,
     restSeconds: 10,
     estimatedMinutes: 2,
     instructions: [
@@ -127,8 +135,10 @@ export const STRETCH_EXERCISES = [
     id: 'stretch_foam',
     name: 'Foam Roll Quads',
     category: 'Stretch',
+    equipment: 'home',
     sets: 2,
     reps: '60 sec each leg',
+    holdSeconds: 60,
     restSeconds: 15,
     estimatedMinutes: 3,
     instructions: [
@@ -156,9 +166,11 @@ export const STRENGTH_EXERCISES = {
       id: 'iso_wall_sit',
       name: 'Wall Sit Isometric Hold',
       category: 'Isometric',
+      equipment: 'home',
       phase: 1,
       sets: 5,
       reps: '45 seconds',
+      holdSeconds: 45,
       restSeconds: 120,
       estimatedMinutes: 7,
       instructions: [
@@ -183,9 +195,11 @@ export const STRENGTH_EXERCISES = {
       id: 'iso_single_leg',
       name: 'Single-Leg Wall Sit Hold',
       category: 'Isometric',
+      equipment: 'home',
       phase: 1,
       sets: 4,
       reps: '45 sec each leg',
+      holdSeconds: 45,
       restSeconds: 120,
       estimatedMinutes: 7,
       instructions: [
@@ -210,6 +224,7 @@ export const STRENGTH_EXERCISES = {
       id: 'hsr_decline',
       name: 'Decline Single-Leg Squat',
       category: 'Strength',
+      equipment: 'home',
       phase: 2,
       sets: 3,
       reps: '15 reps each leg',
@@ -237,6 +252,7 @@ export const STRENGTH_EXERCISES = {
       id: 'hsr_leg_press',
       name: 'Slow Tempo Leg Press (3-0-3)',
       category: 'Strength',
+      equipment: 'gym',
       phase: 2,
       sets: 3,
       reps: '8–12 reps',
@@ -264,6 +280,7 @@ export const STRENGTH_EXERCISES = {
       id: 'hsr_split',
       name: 'Bulgarian Split Squat',
       category: 'Strength',
+      equipment: 'home',
       phase: 2,
       sets: 3,
       reps: '8 reps each leg',
@@ -289,6 +306,7 @@ export const STRENGTH_EXERCISES = {
       id: 'hsr_stepdown',
       name: 'Eccentric Step-Down',
       category: 'Strength',
+      equipment: 'home',
       phase: 2,
       sets: 3,
       reps: '10 reps each leg',
@@ -317,6 +335,7 @@ export const STRENGTH_EXERCISES = {
       id: 'prog_single_squat',
       name: 'Single-Leg Squat',
       category: 'Strength',
+      equipment: 'home',
       phase: 3,
       sets: 3,
       reps: '8 reps each leg',
@@ -342,6 +361,7 @@ export const STRENGTH_EXERCISES = {
       id: 'prog_loaded_stepdown',
       name: 'Loaded Eccentric Step-Down',
       category: 'Strength',
+      equipment: 'home',
       phase: 3,
       sets: 3,
       reps: '12 reps each leg',
@@ -367,6 +387,7 @@ export const STRENGTH_EXERCISES = {
       id: 'prog_rdl',
       name: 'Single-Leg Romanian Deadlift',
       category: 'Strength',
+      equipment: 'home',
       phase: 3,
       sets: 3,
       reps: '10 reps each leg',
@@ -397,9 +418,12 @@ export function getSessionType(date = new Date()) {
   return (day === 1 || day === 3 || day === 5) ? 'full' : 'stretch'
 }
 
-export function getSessionExercises(phase, sessionType) {
+export function getSessionExercises(phase, sessionType, equipmentType = 'gym') {
   if (sessionType === 'stretch') return STRETCH_EXERCISES
-  return [...(STRENGTH_EXERCISES[phase] || []), ...STRETCH_EXERCISES]
+  const strength = (STRENGTH_EXERCISES[phase] || []).filter(ex =>
+    equipmentType === 'gym' || ex.equipment !== 'gym'
+  )
+  return [...strength, ...STRETCH_EXERCISES]
 }
 
 export function determineStartingPhase(painLevel, duration) {

@@ -19,7 +19,7 @@ const REFERENCES = [
 ]
 
 export default function Settings({ store }) {
-  const { profile, resetProgress } = store
+  const { profile, resetProgress, updateProfile } = store
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const phase = PHASES[profile.currentPhase]
 
@@ -39,6 +39,30 @@ export default function Settings({ store }) {
               <p style={{ fontWeight: 700, fontSize: 15, color: phase.color }}>{phase.title}</p>
               <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 4 }}>{phase.description}</p>
             </div>
+          </div>
+        </Section>
+
+        {/* Equipment */}
+        <Section title="Equipment">
+          <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 12 }}>
+            Select your training environment. Home workouts skip the leg press machine.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['home', 'gym'].map(type => (
+              <button
+                key={type}
+                onClick={() => updateProfile({ equipmentType: type })}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 'var(--radius)',
+                  border: `2px solid ${profile.equipmentType === type ? 'var(--blue)' : 'var(--border)'}`,
+                  background: profile.equipmentType === type ? 'var(--blue)' : 'var(--card2)',
+                  color: profile.equipmentType === type ? '#fff' : 'var(--text)',
+                  fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                }}
+              >
+                {type === 'home' ? '🏠 Home' : '🏋️ Gym'}
+              </button>
+            ))}
           </div>
         </Section>
 

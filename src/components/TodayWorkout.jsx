@@ -5,7 +5,7 @@ import ExerciseDetail from './ExerciseDetail'
 export default function TodayWorkout({ store, onStartSession }) {
   const { profile, isTodayComplete, todaySession } = store
   const sessionType = getSessionType()
-  const exercises = getSessionExercises(profile.currentPhase, sessionType)
+  const exercises = getSessionExercises(profile.currentPhase, sessionType, profile.equipmentType)
   const [selectedEx, setSelectedEx] = useState(null)
 
   const isFullDay = sessionType === 'full'
